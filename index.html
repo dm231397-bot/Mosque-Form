@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mosque Match System</title>
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<style>
+body{font-family:Arial;margin:0;background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);color:#fff;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.container{width:380px;background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);padding:20px;border-radius:15px;box-shadow:0 8px 25px rgba(0,0,0,0.3);animation:fadeIn 0.8s}
+h1,h2{text-align:center}
+input,textarea{width:100%;padding:8px;margin:6px 0;border-radius:8px;border:none;outline:none}
+button{width:100%;padding:10px;margin-top:8px;border:none;border-radius:10px;background:#00c9a7;color:#fff;font-weight:bold;cursor:pointer}
+button:hover{background:#00a38a}
+.rules{background:rgba(0,0,0,0.3);padding:10px;border-radius:10px;margin-bottom:10px;font-size:14px}
+.top{text-align:center;font-size:14px;margin-bottom:8px}
+.count{font-weight:bold;text-align:center;margin:8px 0;color:#00ffd5}
+.hidden{display:none}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<!-- PAGE 0 -->
+<div class="container" id="startPage">
+<h1>Enter Mosque Name</h1>
+<input id="mosque" placeholder="Mosque Name">
+<button onclick="startForm()">Continue</button>
+</div>
+
+<!-- PAGE 1 -->
+<div class="container hidden" id="formPage">
+<h1>⚽ Mosque Match</h1>
+<div class="top">
+📅 Saturday, 18th April • 2:00 PM<br>
+👨‍⚖️ Referee: <b>YUSUF ROKIB</b>
+</div>
+
+<div class="rules">
+<b>Rules:</b>
+<ul>
+<li>5 players + 1 goalkeeper</li>
+<li>Max 4 substitutes</li>
+<li>No rough tackles</li>
+<li>Referee decision is final</li>
+<li>Late >10 mins = forfeit</li>
+</ul>
+</div>
+
+<h2>Coach</h2>
+<input id="coach" placeholder="Coach Name">
+
+<h2>Players</h2>
+<input class="player" placeholder="Player 1">
+<input class="player" placeholder="Player 2">
+<input class="player" placeholder="Player 3">
+<input class="player" placeholder="Player 4">
+<input class="player" placeholder="Player 5">
+
+<h2>Goalkeeper</h2>
+<input id="keeper" placeholder="Keeper Name">
+
+<h2>Substitutes (max 4)</h2>
+<textarea id="subs" placeholder="Separate with comma"></textarea>
+
+<button onclick="saveAndPreview()">Save & Preview</button>
+<button onclick="finalSubmit()">Final Submit</button>
+</div>
+
+<!-- PAGE 2 -->
+<div class="container hidden" id="previewPage">
+<h1 id="mosqueTitle">📋 Team Summary</h1>
+<div class="top">
+📅 Saturday, 18th April • 2:00 PM<br>
+👨‍⚖️ Referee: <b>YUSUF ROKIB</b>
+</div>
+
+<div id="output"></div>
+
+<div class="count" id="lockTimer"></div>
+
+<button id="editBtn" onclick="editData()">Edit</button>
+</div>
+
+<script>
+(function(){ emailjs.init("9BjcWS7vfEB9YyAB8"); })();
+
+function startForm(){
+const mosque=document.getElementById('mosque').value;
+if(!mosque){alert('Enter mosque name');return}
+localStorage.setItem('mosque',mosque);
+document.getElementById('startPage').classList.add('hidden');
+document.getElementById('formPage').classList.remove('hidden');
+}
+
+function saveData(){
+const mosque=localStorage.getItem('mosque');
+const coach=document.getElementById('coach').value;
+const players=[...document.querySelectorAll('.player')].map(i=>i.value);
+const keeper=document.getElementById('keeper').value;
+const subs=document.getElementById('subs').value.split(',').filter(s=>s.trim());
+
+if(!coach||players.includes('')||!keeper){alert('Fill all fields');return null}
+if(subs.length>4){alert('Max 4 subs');return null}
+
+return{mosque,coach,players,keeper,subs}
+}
+
+function showPreview(data){
+document.getElementById('formPage').classList.add('hidden');
+document.getElementById('previewPage').classList.remove('hidden');
+
+document.getElementById('mosqueTitle').innerText = data.mosque + " - Team Summary";
+
+let html=`<b>Coach:</b> ${data.coach}<br><br>`;
+html+=`<b>Players:</b><ul>`;
+data.players.forEach(p=>html+=`<li>${p}</li>`);
+html+=`</ul>`;
+html+=`<b>Goalkeeper:</b> ${data.keeper}<br><br>`;
+html+=`<b>Substitutes:</b><ul>`;
+data.subs.forEach(s=>html+=`<li>${s}</li>`);
+html+=`</ul>`;
+
+document.getElementById('output').innerHTML=html;
+startLockCountdown();
+}
+
+function finalSubmit(){
+const data=saveData();
+if(!data)return;
+localStorage.setItem('teamData',JSON.stringify(data));
+localStorage.setItem('locked','true');
+
+// SEND EMAIL
+emailjs.send("service_vsf5h89","template_y9yt3cq",{
+mosque:data.mosque,
+coach:data.coach,
+players:data.players.join(", "),
+keeper:data.keeper,
+subs:data.subs.join(", "),
+referee:"YUSUF ROKIB",
+date:"Saturday 18th April 2PM"
+}).then(()=>{
+alert("✅ Submitted & Sent to Email!");
+}).catch(()=>{
+alert("Submitted but email failed. Check setup.");
+});
+
+showPreview(data);
+document.getElementById('editBtn').style.display='none';
+}
+
+function saveAndPreview(){
+const data=saveData();
+if(!data)return;
+localStorage.setItem('teamData',JSON.stringify(data));
+localStorage.setItem('lockTime',Date.now()+48*60*60*1000);
+localStorage.setItem('locked','false');
+showPreview(data);
+}
+
+function editData(){
+if(localStorage.getItem('locked')==='true')return;
+document.getElementById('previewPage').classList.add('hidden');
+document.getElementById('formPage').classList.remove('hidden');
+}
+
+function startLockCountdown(){
+setInterval(()=>{
+const now=Date.now();
+const lock=localStorage.getItem('lockTime');
+if(!lock)return;
+const diff=lock-now;
+if(diff<=0){
+localStorage.setItem('locked','true');
+document.getElementById('lockTimer').innerText='🔒 Locked';
+document.getElementById('editBtn').style.display='none';
+return;
+}
+const hrs=Math.floor(diff/(1000*60*60));
+document.getElementById('lockTimer').innerText=`⏳ ${hrs} hrs remaining to lock`;
+},1000);
+}
+</script>
+
+</body>
+</html>
