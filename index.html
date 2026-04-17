@@ -5,45 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mosque Match System</title>
 
-<!-- Firebase (Realtime Database ONLY) -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
 <style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-  color:white;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  min-height:100vh;
-}
-.container{
-  width:380px;
-  background:rgba(255,255,255,0.1);
-  padding:20px;
-  border-radius:15px;
-  backdrop-filter:blur(10px);
-  animation:fadeIn 0.6s ease;
-}
-input,textarea,button{
-  width:100%;
-  padding:10px;
-  margin:6px 0;
-  border-radius:10px;
-  border:none;
-}
-button{
-  background:#00c9a7;
-  color:white;
-  font-weight:bold;
-}
+body{margin:0;font-family:Arial;background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);color:white;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.container{width:380px;background:rgba(255,255,255,0.1);padding:20px;border-radius:15px}
+input,textarea,button{width:100%;padding:10px;margin:6px 0;border-radius:10px;border:none}
+button{background:#00c9a7;color:white;font-weight:bold}
 .hidden{display:none}
+.locked{opacity:0.6;pointer-events:none}
 .matchBox{display:flex;gap:10px}
 .team{flex:1;background:rgba(0,0,0,0.3);padding:10px;border-radius:10px}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 
@@ -52,14 +26,12 @@ button{
 <div class="container" id="page1">
 <h2>Enter Mosque Name</h2>
 <input id="mosque">
-<label><input type="checkbox" id="agree"> I read rules</label>
-<button onclick="goForm()">Continue</button>
+<button onclick="checkMosque()">Continue</button>
 <button onclick="openAdminPage()">Referee Panel</button>
 </div>
 
 <div class="container hidden" id="page2">
 <h2>Match Form</h2>
-<div>Referee: <b>YUSUF ROKIB</b></div>
 <input id="coach" placeholder="Coach">
 <input class="player" placeholder="Player 1">
 <input class="player" placeholder="Player 2">
@@ -67,67 +39,99 @@ button{
 <input class="player" placeholder="Player 4">
 <input id="keeper" placeholder="Goalkeeper">
 <textarea id="subs" placeholder="Subs max 4"></textarea>
-<button onclick="submitForm()">Submit</button>
+
+<button id="printBtn" onclick="printForm()">Print</button>
+<button id="submitBtn" onclick="confirmSubmit()">Submit</button>
 </div>
 
 <div class="container hidden" id="adminPage">
 <h2>Referee Panel</h2>
 <input id="refName" placeholder="Enter Referee Name">
 <button onclick="openAdmin()">Enter</button>
-
 <div id="adminContent" class="hidden">
-<h3 id="welcome"></h3>
 <div id="teams"></div>
 <div id="matchView"></div>
 </div>
 </div>
 
 <script>
-// ================= FIREBASE INIT =================
-const firebaseConfig = {
-  apiKey: "AIzaSyB8EEjk_NCS0oZWwqM1u-weFcdHULRJILE",
-  authDomain: "mosque-match-8415b.firebaseapp.com",
-  databaseURL: "https://mosque-match-8415b-default-rtdb.firebaseio.com/",
-  projectId: "mosque-match-8415b",
-  storageBucket: "mosque-match-8415b.firebasestorage.app",
-  messagingSenderId: "609833902745",
-  appId: "1:609833902745:web:0db54dea3efc0ce9230e08"
+// ================= FIREBASE =================
+const firebaseConfig={
+apiKey:"AIzaSyB8EEjk_NCS0oZWwqM1u-weFcdHULRJILE",
+databaseURL:"https://mosque-match-8415b-default-rtdb.firebaseio.com/"
 };
-
 firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
 
-// REALTIME DATABASE
-const db = firebase.database();
+let currentMosque="";
+let selectedA=null;
+let selectedB=null;
 
-let selectedA = null;
-let selectedB = null;
+// ================= CHECK MOSQUE =================
+function checkMosque(){
+currentMosque=mosque.value.trim();
+if(!currentMosque) return alert('Enter name');
 
-// ================= USER =================
-function goForm(){
-if(!mosque.value || !agree.checked) return alert('Fill correctly');
-page1.classList.add('hidden');
-page2.classList.remove('hidden');
+ db.ref('teams/'+currentMosque).once('value').then(s=>{
+  if(s.exists()){
+    loadLockedForm(s.val());
+  }else{
+    page1.classList.add('hidden');
+    page2.classList.remove('hidden');
+  }
+ });
 }
 
-function submitForm(){
-const subsArr = subs.value.split(',').filter(s=>s.trim());
-if(subsArr.length > 4) return alert('Max 4 subs');
+// ================= PRINT =================
+function printForm(){
+window.print();
+}
 
-const data = {
-mosque: mosque.value.trim(),
-coach: coach.value,
-players: [...document.querySelectorAll('.player')].map(p=>p.value),
-keeper: keeper.value,
-subs: subsArr
+// ================= CONFIRM SUBMIT =================
+function confirmSubmit(){
+let rules="RULES:\n1. Be fair\n2. No cheating\n3. Respect referee\n4. Max 4 subs";
+
+if(confirm(rules+"\n\nAre you sure you want to submit?")){
+ submitForm();
+}else{
+ alert('You can edit your form');
+}
+}
+
+// ================= SUBMIT =================
+function submitForm(){
+const subsArr=subs.value.split(',').filter(s=>s.trim());
+
+const data={
+mosque:currentMosque,
+coach:coach.value,
+players:[...document.querySelectorAll('.player')].map(p=>p.value),
+keeper:keeper.value,
+subs:subsArr,
+locked:true
 };
 
-// SAVE TO REALTIME DB
-db.ref('teams/' + data.mosque).set(data)
-.then(()=>alert('Saved Online ✅'))
-.catch(err=>{
-console.error(err);
-alert('Error saving data');
+ db.ref('teams/'+currentMosque).set(data).then(()=>{
+  alert('Submitted Successfully ✅');
+  loadLockedForm(data);
+ });
+}
+
+// ================= LOCKED VIEW =================
+function loadLockedForm(data){
+page1.classList.add('hidden');
+page2.classList.remove('hidden');
+
+coach.value=data.coach;
+keeper.value=data.keeper;
+subs.value=data.subs.join(',');
+
+document.querySelectorAll('.player').forEach((p,i)=>{
+ p.value=data.players[i]||'';
 });
+
+page2.classList.add('locked');
+submitBtn.classList.add('hidden');
 }
 
 // ================= ADMIN =================
@@ -137,58 +141,66 @@ adminPage.classList.remove('hidden');
 }
 
 function openAdmin(){
-if(refName.value !== 'YUSUF ROKIB') return alert('Access denied');
+if(refName.value!=='YUSUF ROKIB') return alert('Access denied');
 adminContent.classList.remove('hidden');
-welcome.innerText = 'Welcome Yusuf Rokib';
 loadTeams();
 }
 
-// ================= LOAD TEAMS =================
 function loadTeams(){
-db.ref('teams').once('value')
-.then(snapshot=>{
-let html = '';
-
-snapshot.forEach(child=>{
-const t = child.val();
-
-html += `
-<div>
-<button onclick="selectTeam('${t.mosque}')">Select</button>
-${t.mosque}
-</div>`;
-});
-
-teams.innerHTML = html;
+db.ref('teams').on('value',snap=>{
+ let html='';
+ snap.forEach(c=>{
+  let t=c.val();
+  html+=`
+  <div>
+  ${t.mosque}
+  <button onclick="editTeam('${t.mosque}')">Edit</button>
+  <button onclick="clearTeam('${t.mosque}')">Clear</button>
+  <button onclick="pickTeam('${t.mosque}')">Select</button>
+  </div>`;
+ });
+ teams.innerHTML=html;
 });
 }
 
-// ================= SELECT TEAM =================
-function selectTeam(id){
-db.ref('teams/' + id).once('value')
-.then(snapshot=>{
-const team = snapshot.val();
+function editTeam(id){
+db.ref('teams/'+id).once('value').then(s=>{
+ const data=s.val();
+ currentMosque=id;
+ page2.classList.remove('locked');
+ page2.classList.remove('hidden');
+ adminPage.classList.add('hidden');
 
-if(!selectedA){
-selectedA = team;
-alert('Team A selected');
-return;
-}
+ coach.value=data.coach;
+ keeper.value=data.keeper;
+ subs.value=data.subs.join(',');
 
-if(!selectedB){
-selectedB = team;
-showMatch();
-return;
-}
+ document.querySelectorAll('.player').forEach((p,i)=>{
+  p.value=data.players[i]||'';
+ });
 
-selectedA = team;
-selectedB = null;
+ submitBtn.classList.remove('hidden');
 });
+}
+
+function clearTeam(id){
+if(confirm('Delete this team?')){
+ db.ref('teams/'+id).remove();
+}
 }
 
 // ================= MATCH =================
+function pickTeam(id){
+db.ref('teams/'+id).once('value').then(s=>{
+ const t=s.val();
+ if(!selectedA){selectedA=t;alert('Team A selected');return}
+ if(!selectedB){selectedB=t;showMatch();return}
+ selectedA=t;selectedB=null;
+});
+}
+
 function showMatch(){
-matchView.innerHTML = `
+matchView.innerHTML=`
 <div class="matchBox">
 <div class="team"><b>${selectedA.mosque}</b><br>${selectedA.players.join('<br>')}</div>
 <div class="team"><b>${selectedB.mosque}</b><br>${selectedB.players.join('<br>')}</div>
@@ -200,53 +212,43 @@ matchView.innerHTML = `
 <button onclick="saveScore()">Save</button>
 
 <h3 id="result"></h3>
-
 <div id="players"></div>
 `;
 }
 
-// ================= SCORE =================
 function saveScore(){
-const a = Number(document.getElementById('scoreA').value);
-const b = Number(document.getElementById('scoreB').value);
+const a=Number(scoreA.value);
+const b=Number(scoreB.value);
 
-if(isNaN(a) || isNaN(b)) return alert('Enter scores');
+let r='Draw';
+if(a>b) r=selectedA.mosque+' wins';
+if(b>a) r=selectedB.mosque+' wins';
 
-let result = 'Draw';
-if(a > b) result = selectedA.mosque + ' wins';
-if(b > a) result = selectedB.mosque + ' wins';
-
-document.getElementById('result').innerText = result;
+result.innerText=r;
 renderPlayers();
 }
 
-// ================= PLAYER ACTIONS =================
 function renderPlayers(){
-let html = '<h3>Player Actions</h3>';
-
-[selectedA, selectedB].forEach(team=>{
-html += `<h4>${team.mosque}</h4>`;
-
+let html='<h3>Player Actions</h3>';
+[selectedA,selectedB].forEach(team=>{
+html+=`<h4>${team.mosque}</h4>`;
 team.players.forEach(p=>{
-let id = team.mosque + "_" + p.replace(/ /g,'_');
-
-html += `
+let id=team.mosque+'_'+p.replace(/ /g,'_');
+html+=`
 ${p}
 <button onclick="stat('${id}','⚽')">⚽</button>
 <button onclick="stat('${id}','🟨')">🟨</button>
 <button onclick="stat('${id}','🟥')">🟥</button>
 <button onclick="stat('${id}','🤕')">🤕</button>
-<span id="${id}"></span><br>
-`;
+<span id="${id}"></span><br>`;
 });
 });
-
-players.innerHTML = html;
+players.innerHTML=html;
 }
 
 function stat(id,s){
-const el = document.getElementById(id);
-if(el) el.innerText += s;
+const el=document.getElementById(id);
+if(el) el.innerText+=s;
 }
 </script>
 
